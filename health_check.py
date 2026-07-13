@@ -11,6 +11,9 @@ EMAIL_ADDRESS = os.environ.get("EMAIL_ADDRESS")
 EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")
 ALERT_RECIPIENT = os.environ.get("ALERT_RECIPIENT")
 DISK_THRESHOLD = int(os.environ.get("DISK_THRESHOLD", "80"))
+CPU_THRESHOLD = int(os.environ.get("CPU_THRESHOLD", "90"))
+MEMORY_THRESHOLD = int(os.environ.get("MEMORY_THRESHOLD", "85"))
+
 
 LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
 LOG_FILE = os.path.join(LOG_DIR, "health_log.txt")
@@ -59,6 +62,18 @@ def write_log(cpu, memory, disk, services):
         f.write(log_entry)
 
     print(log_entry)
+def check_thresholds(cpu, memory, disk):
+    alerts = []
+
+    if disk > DISK_THRESHOLD:
+        alerts.append(f"Disk: {disk}% (threshold: {DISK_THRESHOLD}%)")
+    if cpu > CPU_THRESHOLD:
+        alerts.append(f"CPU: {cpu}% (threshold: {CPU_THRESHOLD}%)")
+    if memory > MEMORY_THRESHOLD:
+        alerts.append(f"Memory: {memory}% (threshold: {MEMORY_THRESHOLD}%)")
+
+    return alerts
+
 
 def send_alert(subject, body):
     if not all([EMAIL_ADDRESS, EMAIL_PASSWORD, ALERT_RECIPIENT]):
@@ -88,17 +103,22 @@ def main():
 
     write_log(cpu, memory, disk, services)
 
-    if disk > DISK_THRESHOLD:
-        subject = f"ALERT: Disk Usage at {disk}% (Threshold: {DISK_THRESHOLD}%)"
+    alerts = check_thresholds(cpu, memory, disk)
+
+    if alerts:
+        metrics_triggered = ", ".join(alerts)
+        subject = f"ALERT: Threshold Exceeded - {metrics_triggered}"
         body = (
-            f"Disk usage has exceeded the configured threshold.\n\n"
-            f"Current Disk Usage: {disk}%\n"
-            f"Threshold: {DISK_THRESHOLD}%\n"
-            f"CPU Usage: {cpu}%\n"
-            f"Memory Usage: {memory}%\n"
-            f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+            f"The following metrics have exceeded their thresholds:\n\n"
+            f"{chr(10).join('- ' + a for a in alerts)}\n\n"
+            f"Full System Status:\n"
+            f"  CPU Usage: {cpu}%\n"
+            f"  Memory Usage: {memory}%\n"
+            f"  Disk Usage: {disk}%\n"
+            f"  Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
         )
         send_alert(subject, body)
+
 
 
 if __name__ == "__main__":
